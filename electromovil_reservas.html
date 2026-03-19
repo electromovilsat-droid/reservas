@@ -1519,13 +1519,21 @@ async function loadFromDB() {
   try {
     const data = await dbGet('em_data');
     if (data) {
-      clients     = data.clients     || {};
-      resCounter  = data.counter     || 1;
+      const raw = data.clients || {};
+      // Normalizar — asegurar que cada cliente tiene reservations como array
+      Object.keys(raw).forEach(k => {
+        if (!raw[k].reservations || !Array.isArray(raw[k].reservations)) {
+          raw[k].reservations = raw[k].reservations
+            ? Object.values(raw[k].reservations)
+            : [];
+        }
+      });
+      clients    = raw;
+      resCounter = data.counter || 1;
     }
     setDbStatus('online', 'Nube activa ✓');
     updateBadge();
     updateResNum();
-    // Update pending badge
     const allPending = Object.values(clients).flatMap(c=>(c.reservations||[]).filter(r=>r.status!=='entregado'));
     document.getElementById('pendingBadge').textContent = allPending.length;
     toast('✓ Conectado a la base de datos', 'ok');
@@ -1692,8 +1700,11 @@ async function saveReservation() {
   const total    = calcTotal();
   const pagado   = document.querySelector('input[name="pagado"]:checked')?.value || 'pendiente';
 
+  // DIAGNÓSTICO — muestra qué tiene cada campo
+  console.log('📋 GUARDAR RESERVA:', { name, phone, date, total, pagado, articles });
+
   if (!name)              { toast('⚠ Introduce el nombre del cliente', 'err'); return; }
-  if (phone.length < 9)   { toast('⚠ Teléfono inválido', 'err'); return; }
+  if (phone.length < 9)   { toast('⚠ Teléfono inválido — se detectaron ' + phone.length + ' dígitos', 'err'); return; }
   if (articles.every(a => !a.article)) { toast('⚠ Añade al menos un artículo', 'err'); return; }
 
   const resId = '#' + String(resCounter).padStart(3,'0');
@@ -1706,14 +1717,23 @@ async function saveReservation() {
     clients[phone] = { name, phone, reservations: [] };
   } else {
     clients[phone].name = name;
+    // Asegurar que reservations siempre es un array
+    if (!Array.isArray(clients[phone].reservations)) {
+      clients[phone].reservations = [];
+    }
   }
   clients[phone].reservations.push(reservation);
   resCounter++;
 
+  console.log('💾 Enviando a Firebase:', FIREBASE_URL);
   document.getElementById('loadingOverlay').classList.add('show');
   let ok = false;
   try {
     ok = await saveToDB();
+    console.log('✅ saveToDB resultado:', ok);
+  } catch(e) {
+    console.error('❌ Error en saveToDB:', e);
+    toast('⚠ Error inesperado: ' + e.message, 'err');
   } finally {
     document.getElementById('loadingOverlay').classList.remove('show');
   }
@@ -1725,6 +1745,8 @@ async function saveReservation() {
     buildTicket(name, phone, resId, date, articles, total, pagado);
     setTimeout(() => sendPortalWhatsApp(name, phone, resId, total, pagado), 2000);
     clearForm();
+  } else {
+    console.warn('⚠ No se guardó la reserva. ok=false');
   }
 }
 
