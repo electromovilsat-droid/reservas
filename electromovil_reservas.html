@@ -1671,7 +1671,29 @@ async function updateStatus(phone, resId, newStatus) {
   if (ok) { toast('Estado actualizado', 'info'); openClientModal(phone); }
 }
 
-/* ─── PANEL DE RESERVAS ──────────────────────────────────────────────── */
+/* ─── TOGGLE PAGO ────────────────────────────────────────────────────── */
+async function togglePago(phone, resId, newPago) {
+  try {
+    const data = await dbGet('em_data');
+    if (data) { clients = data.clients || {}; }
+  } catch(e) {}
+
+  const c = clients[phone]; if (!c) return;
+  const res = c.reservations.find(r => r.id === resId); if (!res) return;
+  res.pagado = newPago;
+  res.statusHistory.push({
+    status: newPago === 'pagado' ? 'pagado' : 'pendiente_pago',
+    date: now()
+  });
+
+  document.getElementById('loadingOverlay').classList.add('show');
+  const ok = await saveToDB();
+  document.getElementById('loadingOverlay').classList.remove('show');
+  if (ok) {
+    toast(newPago === 'pagado' ? '✅ Marcado como Pagado' : '⏳ Marcado como Pendiente de Pago', 'ok');
+    openClientModal(phone);
+  }
+}
 let currentTab = 'pending';
 
 async function renderPanel() {
@@ -2020,8 +2042,8 @@ async function openClientModal(phone) {
   const c = clients[phone]; if (!c) return;
   document.getElementById('modalTitle').textContent = c.name;
 
-  const SL = { pedido:'Pedido realizado', esperando:'Esperando pedido', recibido:'Pedido recibido', entregado:'Entregado al cliente' };
-  const SI = { pedido:'📋', esperando:'⏳', recibido:'📦', entregado:'✅' };
+  const SL = { pedido:'Pedido realizado', esperando:'Esperando pedido', recibido:'Pedido recibido', entregado:'Entregado al cliente', pagado:'Pagado', pendiente_pago:'Pendiente de pago' };
+  const SI = { pedido:'📋', esperando:'⏳', recibido:'📦', entregado:'✅', pagado:'💳', pendiente_pago:'⏳' };
 
   const resHTML = (c.reservations || []).slice().reverse().map(r => {
     const artRows = r.articles.map(a =>
@@ -2070,13 +2092,29 @@ async function openClientModal(phone) {
           <button class="btn-status${r.status==='esperando'?' active-status':''}" onclick="updateStatus('${esc(phone)}','${r.id}','esperando')">⏳ Esperando</button>
           <button class="btn-status${r.status==='recibido'?' active-status':''}"  onclick="updateStatus('${esc(phone)}','${r.id}','recibido')">📦 Recibido</button>
           <button class="btn-status${r.status==='entregado'?' active-status':''}" onclick="updateStatus('${esc(phone)}','${r.id}','entregado')">✅ Entregado</button>
+        </div>
+        <div class="res-actions" style="margin-top:6px;padding-top:8px;border-top:1px solid var(--gray-100)">
+          ${r.pagado === 'pagado'
+            ? `<button onclick="togglePago('${esc(phone)}','${r.id}','pendiente')"
+                style="background:var(--warning-bg);border:1.5px solid rgba(230,81,0,.4);color:var(--warning);padding:8px 16px;border-radius:8px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.5px;text-transform:uppercase;transition:all .2s"
+                onmouseover="this.style.background='var(--warning)';this.style.color='#fff'"
+                onmouseout="this.style.background='var(--warning-bg)';this.style.color='var(--warning)'">
+                ⏳ Marcar Pendiente de Pago
+              </button>`
+            : `<button onclick="togglePago('${esc(phone)}','${r.id}','pagado')"
+                style="background:var(--success-bg);border:1.5px solid rgba(46,125,50,.4);color:var(--success);padding:8px 16px;border-radius:8px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.5px;text-transform:uppercase;transition:all .2s"
+                onmouseover="this.style.background='var(--success)';this.style.color='#fff'"
+                onmouseout="this.style.background='var(--success-bg)';this.style.color='var(--success)'">
+                ✅ Marcar como Pagado
+              </button>`
+          }
           <a class="btn-wa" href="https://wa.me/34${c.phone.replace(/\D/g,'')}?text=${waMsg}" target="whatsapp_web">${waIcon()} Avisar</a>
           <button class="btn-print-sm" onclick='printRes(${JSON.stringify(c.name)},${JSON.stringify(c.phone)},${JSON.stringify(r)})'>🖨️ Ticket</button>
           <button onclick="deleteReservation('${esc(phone)}','${r.id}')"
             style="background:#FFF0F0;border:1px solid #FFCDD2;color:#C62828;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.5px;text-transform:uppercase;transition:all .2s;margin-left:auto"
             onmouseover="this.style.background='#C62828';this.style.color='#fff'"
             onmouseout="this.style.background='#FFF0F0';this.style.color='#C62828'">
-            🗑 Eliminar reserva
+            🗑 Eliminar
           </button>
         </div>
       </div>`;
@@ -2108,7 +2146,7 @@ function sendPortalWhatsApp(name, phone, resId, total, pagado) {
   const portalUrl = (localStorage.getItem('em_portal_url') || CLIENT_PORTAL)
     + '?tel=' + encodeURIComponent(phone.replace(/\s/g,''));
   const estadoPago = pagado === 'pagado' ? '✅ PAGADA' : '⏳ PENDIENTE DE PAGO';
-  const msg = `Hola ${name} 👋\n\nTe confirmamos tu reserva *${resId}* en *Electromóvil SAT*.\n\n📦 Total: *${total.toFixed(2)} €*\n💳 Estado pago: ${estadoPago}\n\nPuedes consultar el estado de tu reserva en cualquier momento desde este enlace:\n🔗 ${portalUrl}\n\nTe avisaremos cuando tu pedido esté listo. ¡Gracias! 😊`;
+  const msg = `Hola ${name} 👋\n\nTe confirmamos tu reserva *${resId}* en *Electromóvil SAT* 📱\n\n📦 Total: *${total.toFixed(2)} €*\n💳 Pago: ${estadoPago}\n\n🔗 *Consulta el estado de tu reserva aquí:*\n${portalUrl}\n\n👆 Pulsa el enlace para ver en tiempo real cuándo está listo tu pedido.\n\n¡Gracias por confiar en nosotros! 😊\nElectromóvil SAT · Tel. 658884201`;
   const waUrl = `https://wa.me/34${phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`;
   const w = window.open(waUrl, 'whatsapp_web');
   if (!w) toast('⚠ Permite ventanas emergentes para enviar WhatsApp automático', 'err');
