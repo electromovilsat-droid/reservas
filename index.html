@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electromóvil SAT – Reservas</title>
+<!-- Redirección automática manteniendo el parámetro ?tel= -->
+<script>
+  // Captura el parámetro ?tel= si viene en la URL raíz
+  // Ej: /reservas?tel=612345678  →  /reservas/cliente.html?tel=612345678
+  const params = window.location.search;
+  window.location.replace('https://electromovilsat-droid.github.io/reservas/cliente.html' + params);
+</script>
+<!-- Fallback por si JS está desactivado -->
+<meta http-equiv="refresh" content="0;url=https://electromovilsat-droid.github.io/reservas/cliente.html">
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #1A1A1A;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    text-align: center;
+  }
+  .logo { font-size: 48px; margin-bottom: 16px; }
+  h1 { color: #C9A227; font-size: 22px; margin-bottom: 8px; }
+  p { color: #aaa; font-size: 14px; }
+  a { color: #C9A227; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="logo">📱</div>
+    <h1>Electromóvil SAT</h1>
+    <p>Redirigiendo a tu reserva…</p>
+    <p style="margin-top:12px">
+      Si no ocurre nada,
+      <a href="https://electromovilsat-droid.github.io/reservas/cliente.html">pulsa aquí</a>
+    </p>
+  </div>
+</body>
+</html>
