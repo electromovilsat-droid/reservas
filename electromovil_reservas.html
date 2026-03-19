@@ -997,7 +997,7 @@ table.art-table td.td-del { width: 44px; text-align: center; }
   <button onclick="toggleConfigPanel()" id="nav-setup" title="Configurar base de datos">
     ⚙️ Config
   </button>
-  <a href="https://web.whatsapp.com" target="_blank"
+  <a href="https://web.whatsapp.com" target="whatsapp_web"
     style="
       background: #25D366;
       color: #fff;
@@ -1790,7 +1790,7 @@ function clientPanelCard(c, SL) {
           <div style="font-size:10px;color:var(--gray-400);margin-top:3px">${done} de ${total} entregadas (${pct}%)</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
-          <a class="btn-wa" href="https://wa.me/34${c.phone.replace(/\D/g,'')}" target="_blank"
+          <a class="btn-wa" href="https://wa.me/34${c.phone.replace(/\D/g,'')}" target="whatsapp_web"
              onclick="event.stopPropagation()">${waIcon()} WhatsApp</a>
           <span class="cpc-toggle" id="toggle-${cardId}">▼ Ver reservas</span>
         </div>
@@ -1940,7 +1940,7 @@ function waSendAll() {
     const personal = msg.replace(/\{nombre\}/gi, name);
     const url = `https://wa.me/34${phone}?text=${encodeURIComponent(personal)}`;
     setTimeout(() => {
-      const w = window.open(url, '_blank');
+      const w = window.open(url, 'whatsapp_web');
       if (!w) toast('⚠ Permite ventanas emergentes en Chrome', 'err');
     }, delay);
     delay += 600; // pequeña pausa entre pestañas para no saturar
@@ -1994,7 +1994,7 @@ async function renderClients() {
         </div>
         <div class="client-meta">
           <div class="res-pill">${c.reservations?.length || 0} reserva(s)</div>
-          <a class="btn-wa" href="https://wa.me/34${c.phone.replace(/\D/g,'')}" target="_blank" onclick="event.stopPropagation()">
+          <a class="btn-wa" href="https://wa.me/34${c.phone.replace(/\D/g,'')}" target="whatsapp_web" onclick="event.stopPropagation()">
             ${waIcon()} WhatsApp
           </a>
           <button onclick="event.stopPropagation(); deleteClient('${esc(c.phone)}')"
@@ -2070,7 +2070,7 @@ async function openClientModal(phone) {
           <button class="btn-status${r.status==='esperando'?' active-status':''}" onclick="updateStatus('${esc(phone)}','${r.id}','esperando')">⏳ Esperando</button>
           <button class="btn-status${r.status==='recibido'?' active-status':''}"  onclick="updateStatus('${esc(phone)}','${r.id}','recibido')">📦 Recibido</button>
           <button class="btn-status${r.status==='entregado'?' active-status':''}" onclick="updateStatus('${esc(phone)}','${r.id}','entregado')">✅ Entregado</button>
-          <a class="btn-wa" href="https://wa.me/34${c.phone.replace(/\D/g,'')}?text=${waMsg}" target="_blank">${waIcon()} Avisar</a>
+          <a class="btn-wa" href="https://wa.me/34${c.phone.replace(/\D/g,'')}?text=${waMsg}" target="whatsapp_web">${waIcon()} Avisar</a>
           <button class="btn-print-sm" onclick='printRes(${JSON.stringify(c.name)},${JSON.stringify(c.phone)},${JSON.stringify(r)})'>🖨️ Ticket</button>
           <button onclick="deleteReservation('${esc(phone)}','${r.id}')"
             style="background:#FFF0F0;border:1px solid #FFCDD2;color:#C62828;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.5px;text-transform:uppercase;transition:all .2s;margin-left:auto"
@@ -2087,7 +2087,7 @@ async function openClientModal(phone) {
       <div style="font-size:14px;color:var(--gray-600)">📞 <strong style="color:var(--black)">${esc(c.phone)}</strong></div>
       <div style="font-size:14px;color:var(--gray-600)">📦 <strong style="color:var(--black)">${c.reservations?.length||0} reserva(s)</strong></div>
       <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-        <a class="btn-wa" href="https://wa.me/34${c.phone.replace(/\D/g,'')}" target="_blank">${waIcon()} Contactar</a>
+        <a class="btn-wa" href="https://wa.me/34${c.phone.replace(/\D/g,'')}" target="whatsapp_web">${waIcon()} Contactar</a>
         <button onclick="deleteClient('${esc(c.phone)}')"
           style="background:#FFF0F0;border:1px solid #FFCDD2;color:#C62828;padding:8px 16px;border-radius:8px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.5px;text-transform:uppercase;transition:all .2s"
           onmouseover="this.style.background='#C62828';this.style.color='#fff'"
@@ -2110,7 +2110,7 @@ function sendPortalWhatsApp(name, phone, resId, total, pagado) {
   const estadoPago = pagado === 'pagado' ? '✅ PAGADA' : '⏳ PENDIENTE DE PAGO';
   const msg = `Hola ${name} 👋\n\nTe confirmamos tu reserva *${resId}* en *Electromóvil SAT*.\n\n📦 Total: *${total.toFixed(2)} €*\n💳 Estado pago: ${estadoPago}\n\nPuedes consultar el estado de tu reserva en cualquier momento desde este enlace:\n🔗 ${portalUrl}\n\nTe avisaremos cuando tu pedido esté listo. ¡Gracias! 😊`;
   const waUrl = `https://wa.me/34${phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`;
-  const w = window.open(waUrl, '_blank');
+  const w = window.open(waUrl, 'whatsapp_web');
   if (!w) toast('⚠ Permite ventanas emergentes para enviar WhatsApp automático', 'err');
 }
 
