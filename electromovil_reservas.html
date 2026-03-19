@@ -1172,6 +1172,35 @@ table.art-table td.td-del { width: 44px; text-align: center; }
   <!-- DATOS CLIENTE -->
   <div class="section">
     <div class="section-title">Datos del Cliente</div>
+
+    <!-- BUSCADOR POR TELÉFONO -->
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--gray-600);display:block;margin-bottom:6px">
+        🔍 Buscar cliente existente por teléfono
+      </label>
+      <div style="display:flex;gap:8px">
+        <input type="tel" id="clientSearch"
+          placeholder="Introduce el teléfono y pulsa Buscar…"
+          onkeydown="if(event.key==='Enter') buscarClientePorTelefono()"
+          autocomplete="off"
+          style="flex:1;background:var(--gold-pale);border:1.5px solid var(--gold);border-radius:var(--radius-sm);padding:11px 14px;font-size:15px;font-family:'Barlow',sans-serif;outline:none;letter-spacing:1px">
+        <button onclick="buscarClientePorTelefono()"
+          style="background:var(--gold);color:var(--black);border:none;padding:11px 20px;border-radius:var(--radius-sm);font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:15px;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:all .2s"
+          onmouseover="this.style.background='var(--gold-light)'"
+          onmouseout="this.style.background='var(--gold)'">
+          Buscar
+        </button>
+      </div>
+      <div id="searchMsg" style="margin-top:8px;font-size:13px;display:none"></div>
+    </div>
+
+    <!-- SEPARADOR -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="flex:1;height:1px;background:var(--gray-200)"></div>
+      <span style="font-size:11px;color:var(--gray-400);font-weight:600;text-transform:uppercase;letter-spacing:1px">datos del cliente</span>
+      <div style="flex:1;height:1px;background:var(--gray-200)"></div>
+    </div>
+
     <div class="grid-2">
       <div class="field">
         <label>Nombre y Apellidos *</label>
@@ -1181,6 +1210,16 @@ table.art-table td.td-del { width: 44px; text-align: center; }
         <label>Teléfono Móvil * (identificador único)</label>
         <input type="tel" id="clientPhone" placeholder="Ej: 612 345 678">
       </div>
+    </div>
+
+    <!-- BADGE CLIENTE ENCONTRADO -->
+    <div id="clientFoundBadge" style="display:none;margin-top:12px;background:var(--success-bg);border:1px solid rgba(46,125,50,.3);border-radius:10px;padding:10px 14px;align-items:center;gap:10px">
+      <span style="font-size:18px">✅</span>
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:15px;color:var(--success)" id="clientFoundName"></div>
+        <div style="font-size:12px;color:var(--gray-600)" id="clientFoundInfo"></div>
+      </div>
+      <button onclick="clearClientSelection()" style="margin-left:auto;background:none;border:1px solid rgba(46,125,50,.3);color:var(--success);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:600">✕ Limpiar</button>
     </div>
   </div>
 
@@ -1500,10 +1539,44 @@ async function loadFromDB() {
 async function saveToDB() {
   if (!FIREBASE_URL) { toast('⚠ Configura la base de datos primero', 'err'); return false; }
   try {
-    await dbSet('em_data', { clients, counter: resCounter });
+    // Sanitizar claves — Firebase no permite . # $ [ ] / en claves
+    const safeClients = {};
+    Object.entries(clients).forEach(([key, val]) => {
+      const safeKey = key.replace(/[.#$\[\]/\s]/g, '_');
+      safeClients[safeKey] = { ...val, phone: val.phone };
+    });
+
+    // Timeout de 10 segundos para no quedarse colgado
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const r = await fetch(`${FIREBASE_URL}/em_data.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clients: safeClients, counter: resCounter }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error('Firebase HTTP error:', r.status, txt);
+      if (r.status === 401 || r.status === 403) {
+        toast('⚠ Sin permiso. Ve a Firebase → Reglas y ponlas en true', 'err');
+      } else {
+        toast('⚠ Error ' + r.status + ' al guardar', 'err');
+      }
+      return false;
+    }
     return true;
+
   } catch(e) {
-    toast('Error al guardar en la nube: ' + e.message, 'err');
+    console.error('Firebase error:', e);
+    if (e.name === 'AbortError') {
+      toast('⚠ Tiempo de espera agotado. Comprueba tu conexión.', 'err');
+    } else {
+      toast('⚠ Error al guardar: ' + e.message, 'err');
+    }
     return false;
   }
 }
@@ -1613,7 +1686,7 @@ async function saveReservation() {
   if (!FIREBASE_URL) { toast('Configura la base de datos primero (menú ⚙️)', 'err'); return; }
 
   const name    = document.getElementById('clientName').value.trim();
-  const phone   = document.getElementById('clientPhone').value.trim().replace(/\s/g, '');
+  const phone   = document.getElementById('clientPhone').value.trim().replace(/[^0-9]/g, '');
   const date    = document.getElementById('resDate').value;
   const articles = getArticles();
   const total    = calcTotal();
@@ -1638,16 +1711,19 @@ async function saveReservation() {
   resCounter++;
 
   document.getElementById('loadingOverlay').classList.add('show');
-  const ok = await saveToDB();
-  document.getElementById('loadingOverlay').classList.remove('show');
+  let ok = false;
+  try {
+    ok = await saveToDB();
+  } finally {
+    document.getElementById('loadingOverlay').classList.remove('show');
+  }
 
   if (ok) {
     updateResNum();
     updateBadge();
     toast('✓ Reserva ' + resId + ' guardada en la nube', 'ok');
     buildTicket(name, phone, resId, date, articles, total, pagado);
-    // Enviar WhatsApp automático con enlace al portal
-    sendPortalWhatsApp(name, phone, resId, total, pagado);
+    setTimeout(() => sendPortalWhatsApp(name, phone, resId, total, pagado), 2000);
     clearForm();
   }
 }
@@ -1668,10 +1744,42 @@ async function updateStatus(phone, resId, newStatus) {
   document.getElementById('loadingOverlay').classList.add('show');
   const ok = await saveToDB();
   document.getElementById('loadingOverlay').classList.remove('show');
-  if (ok) { toast('Estado actualizado', 'info'); openClientModal(phone); }
+  if (ok) {
+    toast('Estado actualizado', 'info');
+    // Preguntar si quiere avisar al cliente por WhatsApp
+    sendStatusWhatsApp(phone, resId, newStatus);
+    openClientModal(phone);
+  }
 }
 
-/* ─── TOGGLE PAGO ────────────────────────────────────────────────────── */
+/* ─── WHATSAPP NOTIFICACIÓN DE ESTADO ────────────────────────────────── */
+function sendStatusWhatsApp(phone, resId, newStatus) {
+  const c = clients[phone]; if (!c) return;
+  const res = c.reservations.find(r => r.id === resId); if (!res) return;
+
+  // Solo notificar en estados relevantes para el cliente
+  const notificar = ['esperando','recibido','entregado'];
+  if (!notificar.includes(newStatus)) return;
+
+  const portalLink = (localStorage.getItem('em_portal_url') || CLIENT_PORTAL)
+    + '?tel=' + encodeURIComponent(phone.replace(/\s/g,''));
+
+  const mensajes = {
+    esperando: `Hola ${c.name} 👋\n\nTe informamos que tu reserva *${resId}* ha sido procesada y estamos *esperando la llegada del pedido* 📦\n\nTe avisaremos en cuanto llegue a tienda.\n\n🔗 Consulta el estado aquí:\n${portalLink}\n\nElectromóvil SAT · Tel. 658884201`,
+    recibido:  `Hola ${c.name} 👋\n\n¡Buenas noticias! Tu pedido de la reserva *${resId}* ha llegado a nuestra tienda 📦✅\n\nPuedes pasar a recogerlo cuando quieras en horario comercial.\n\n📍 C/ María Auxiliadora Nº 59, Salamanca\n🕐 Recuerda que dispones de *1 mes* para recogerlo.\n\n🔗 Ver detalle de tu reserva:\n${portalLink}\n\nElectromóvil SAT · Tel. 658884201`,
+    entregado: `Hola ${c.name} 👋\n\nTu reserva *${resId}* ha sido entregada correctamente ✅\n\n¡Gracias por confiar en Electromóvil SAT! 😊\nSi necesitas cualquier cosa no dudes en contactarnos.\n\n🔗 Ver historial de tus reservas:\n${portalLink}\n\nElectromóvil SAT · Tel. 658884201`,
+  };
+
+  const msg = mensajes[newStatus];
+  if (!msg) return;
+
+  // Preguntar antes de abrir WhatsApp
+  const etiquetas = { esperando:'⏳ Esperando pedido', recibido:'📦 Pedido recibido', entregado:'✅ Entregado' };
+  if (confirm(`¿Enviar aviso por WhatsApp a ${c.name} sobre el nuevo estado "${etiquetas[newStatus]}"?`)) {
+    const url = `https://web.whatsapp.com/send?phone=34${phone.replace(/[^0-9]/g,'')}&text=${encodeURIComponent(msg)}`;
+    window.open(url, 'whatsapp_web');
+  }
+}
 async function togglePago(phone, resId, newPago) {
   try {
     const data = await dbGet('em_data');
@@ -1884,13 +1992,67 @@ async function deleteReservation(phone, resId) {
   }
 }
 
+/* ─── BUSCAR CLIENTE POR TELÉFONO ────────────────────────────────────── */
+function buscarClientePorTelefono() {
+  const raw   = document.getElementById('clientSearch').value.trim().replace(/[^0-9]/g, '');
+  const msgEl = document.getElementById('searchMsg');
+
+  if (raw.length < 9) {
+    msgEl.style.display = 'block';
+    msgEl.innerHTML = '<span style="color:var(--warning)">⚠ Introduce al menos 9 dígitos.</span>';
+    return;
+  }
+
+  const c = clients[raw];
+
+  if (!c) {
+    msgEl.style.display = 'block';
+    msgEl.innerHTML = '<span style="color:var(--gray-600)">ℹ️ No encontrado. Se creará como cliente nuevo al guardar.</span>';
+    // Rellenar solo el teléfono para no tener que escribirlo
+    document.getElementById('clientPhone').value = raw;
+    document.getElementById('clientName').value  = '';
+    document.getElementById('clientFoundBadge').style.display = 'none';
+    document.getElementById('clientName').focus();
+    return;
+  }
+
+  // Cliente encontrado — rellenar campos
+  document.getElementById('clientName').value  = c.name;
+  document.getElementById('clientPhone').value = c.phone;
+
+  const nRes        = c.reservations?.length || 0;
+  const pending     = (c.reservations||[]).filter(r => r.status !== 'entregado').length;
+  const totalGastado = (c.reservations||[]).reduce((s,r) => s+(r.total||0), 0);
+
+  document.getElementById('clientFoundName').textContent = c.name;
+  document.getElementById('clientFoundInfo').textContent =
+    `📞 ${c.phone}  ·  ${nRes} reserva${nRes!==1?'s':''}  ·  ${pending} pendiente${pending!==1?'s':''}  ·  Total gastado: ${totalGastado.toFixed(2)} €`;
+  document.getElementById('clientFoundBadge').style.display = 'flex';
+
+  msgEl.style.display = 'none';
+  document.getElementById('clientSearch').value = '';
+}
+
+function clearClientSelection() {
+  document.getElementById('clientName').value   = '';
+  document.getElementById('clientPhone').value  = '';
+  document.getElementById('clientSearch').value = '';
+  document.getElementById('clientFoundBadge').style.display = 'none';
+  document.getElementById('searchMsg').style.display = 'none';
+  document.getElementById('clientSearch').focus();
+}
+
 /* ─── CLEAR FORM ─────────────────────────────────────────────────────── */
 function clearForm() {
-  document.getElementById('clientName').value  = '';
-  document.getElementById('clientPhone').value = '';
-  document.getElementById('pagadoNo').checked  = true;
+  document.getElementById('clientName').value   = '';
+  document.getElementById('clientPhone').value  = '';
+  document.getElementById('clientSearch').value = '';
+  document.getElementById('searchMsg').style.display = 'none';
+  const badge = document.getElementById('clientFoundBadge');
+  if (badge) badge.style.display = 'none';
+  document.getElementById('pagadoNo').checked   = true;
   setToday();
-  document.getElementById('artBody').innerHTML = '';
+  document.getElementById('artBody').innerHTML  = '';
   addRow();
   calcTotal();
 }
@@ -2060,8 +2222,28 @@ async function openClientModal(phone) {
       `<div class="hl-item"><div class="hl-dot"></div>${SI[h.status]||''} <b>${SL[h.status]||h.status}</b> — ${h.date}</div>`
     ).join('');
 
+    const portalLink = (localStorage.getItem('em_portal_url') || CLIENT_PORTAL)
+      + '?tel=' + encodeURIComponent(c.phone.replace(/\s/g,''));
+    const estadoPago = r.pagado === 'pagado' ? '✅ PAGADA' : '⏳ PENDIENTE DE PAGO';
+    const artResumen = r.articles.map(a => `• ${a.qty}x ${a.article||'-'}${a.model?' '+a.model:''}${a.color?' '+a.color:''}`).join('\n');
+
     const waMsg = encodeURIComponent(
-      `Hola ${c.name},\nTe informamos sobre tu reserva ${r.id}:\nEstado: ${SL[r.status]||r.status}\nTotal: ${r.total.toFixed(2)} €\n\nGracias, Electromovil SAT.`
+`Hola ${c.name} 👋
+
+Te informamos sobre tu reserva *${r.id}* en *Electromóvil SAT* 📱
+
+📦 *Estado:* ${SL[r.status]||r.status}
+💳 *Pago:* ${estadoPago}
+💰 *Total:* ${r.total.toFixed(2)} €
+
+🛍️ *Artículos:*
+${artResumen}
+
+🔗 *Consulta tu reserva en tiempo real:*
+${portalLink}
+
+¡Gracias por confiar en nosotros! 😊
+Electromóvil SAT · Tel. 658884201`
     );
 
     return `
@@ -2144,12 +2326,24 @@ function closeModal() { document.getElementById('clientModal').classList.remove(
 
 function sendPortalWhatsApp(name, phone, resId, total, pagado) {
   const portalUrl = (localStorage.getItem('em_portal_url') || CLIENT_PORTAL)
-    + '?tel=' + encodeURIComponent(phone.replace(/\s/g,''));
+    + '?tel=' + encodeURIComponent(phone.replace(/[^0-9]/g,''));
   const estadoPago = pagado === 'pagado' ? '✅ PAGADA' : '⏳ PENDIENTE DE PAGO';
-  const msg = `Hola ${name} 👋\n\nTe confirmamos tu reserva *${resId}* en *Electromóvil SAT* 📱\n\n📦 Total: *${total.toFixed(2)} €*\n💳 Pago: ${estadoPago}\n\n🔗 *Consulta el estado de tu reserva aquí:*\n${portalUrl}\n\n👆 Pulsa el enlace para ver en tiempo real cuándo está listo tu pedido.\n\n¡Gracias por confiar en nosotros! 😊\nElectromóvil SAT · Tel. 658884201`;
-  const waUrl = `https://wa.me/34${phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`;
-  const w = window.open(waUrl, 'whatsapp_web');
-  if (!w) toast('⚠ Permite ventanas emergentes para enviar WhatsApp automático', 'err');
+  const msg =
+`Hola ${name} 👋
+
+Te confirmamos tu reserva *${resId}* en *Electromóvil SAT* 📱
+
+📦 Total: *${total.toFixed(2)} €*
+💳 Pago: ${estadoPago}
+
+🔗 *Consulta el estado de tu reserva aquí:*
+${portalUrl}
+
+¡Gracias por confiar en nosotros! 😊
+Electromóvil SAT · Tel. 658884201`;
+
+  const waUrl = `https://web.whatsapp.com/send?phone=34${phone.replace(/[^0-9]/g,'')}&text=${encodeURIComponent(msg)}`;
+  window.open(waUrl, 'whatsapp_web');
 }
 
 /* ─── PRINT ──────────────────────────────────────────────────────────── */
@@ -2209,8 +2403,7 @@ function buildTicket(name, phone, resId, date, articles, total, pagado) {
     : `<div style="text-align:center;font-weight:bold;font-size:14px;border:2px dashed #000;padding:5px 0;margin:5px 0;letter-spacing:1px">PENDIENTE DE PAGO</div>`;
 
   const portalUrl = (localStorage.getItem('em_portal_url') || CLIENT_PORTAL)
-    + '?tel=' + encodeURIComponent(phone.replace(/\s/g,''));
-  const qrApiUrl  = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(portalUrl)}`;
+    + '?tel=' + encodeURIComponent(phone.replace(/[^0-9]/g,''));
 
   const ticketHTML = `<!DOCTYPE html>
 <html>
@@ -2323,9 +2516,9 @@ function buildTicket(name, phone, resId, date, articles, total, pagado) {
   <div class="sep2"></div>
 
   <div class="center" style="margin:6px 0">
-    <div class="bold" style="font-size:12px;margin-bottom:4px">CONSULTA TU RESERVA</div>
-    <img src="${qrApiUrl}" width="110" height="110" style="display:block;margin:0 auto 4px">
-    <div class="xsmall">Escanea el QR con tu movil<br>para ver el estado de tu pedido</div>
+    <div class="bold" style="font-size:12px;margin-bottom:4px">CONSULTA TU RESERVA ONLINE</div>
+    <div class="xsmall" style="word-break:break-all;background:#f5f5f5;padding:6px;border-radius:4px;font-size:10px">${portalUrl}</div>
+    <div class="xsmall" style="margin-top:3px">Introduce tu telefono en la web para ver tu pedido</div>
   </div>
 
   <div class="sep2"></div>
@@ -2344,28 +2537,22 @@ function buildTicket(name, phone, resId, date, articles, total, pagado) {
 </div>
 <script>
   window.onload = function() {
-    var img = document.querySelector('img[src*="qrserver"]');
-    if (img && !img.complete) {
-      img.onload  = function() { window.print(); setTimeout(function(){ window.close(); }, 1500); };
-      img.onerror = function() { window.print(); setTimeout(function(){ window.close(); }, 1500); };
-    } else {
-      setTimeout(function(){ window.print(); setTimeout(function(){ window.close(); }, 1500); }, 300);
-    }
+    setTimeout(function(){ window.print(); setTimeout(function(){ window.close(); }, 1500); }, 300);
   };
 <\/script>
 </body>
 </html>`;
 
-  // Abrir ventana emergente con el ticket
-  const popup = window.open('', 'ticket_print',
-    'width=340,height=700,toolbar=0,menubar=0,location=0,status=0,scrollbars=1');
-  if (!popup) {
-    toast('⚠ Permite las ventanas emergentes en Chrome para imprimir', 'err');
-    return;
+  // Crear Blob URL y abrirlo en pestaña nueva — Chrome nunca lo bloquea
+  const blob = new Blob([ticketHTML], { type: 'text/html;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  const tab = window.open(blobUrl, '_blank');
+  if (!tab) {
+    // Fallback: escribir en iframe oculto e imprimir
+    toast('⚠ Permite ventanas emergentes en Chrome para imprimir', 'err');
   }
-  popup.document.open();
-  popup.document.write(ticketHTML);
-  popup.document.close();
+  // Liberar memoria tras 10 segundos
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 }
 
 /* ─── HELPERS ────────────────────────────────────────────────────────── */
