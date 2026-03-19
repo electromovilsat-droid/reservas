@@ -2158,17 +2158,17 @@ function buildTicket(name, phone, resId, date, articles, total, pagado) {
     const lineTotal = unitPrice * qty;
     baseImponible  += lineTotal / (1 + IVA_PCT / 100);
     return `<tr>
-      <td style="padding:2px 3px;text-align:center">${qty}</td>
-      <td style="padding:2px 3px">${desc || '-'}</td>
-      <td style="padding:2px 3px;text-align:right;white-space:nowrap">${unitPrice.toFixed(2)}</td>
-      <td style="padding:2px 3px;text-align:right;white-space:nowrap">${lineTotal.toFixed(2)}</td>
+      <td style="padding:4px 2px;text-align:center;font-size:13px">${qty}</td>
+      <td style="padding:4px 2px;font-size:13px">${desc || '-'}</td>
+      <td style="padding:4px 2px;text-align:right;white-space:nowrap;font-size:13px">${unitPrice.toFixed(2)}</td>
+      <td style="padding:4px 2px;text-align:right;white-space:nowrap;font-size:13px;font-weight:bold">${lineTotal.toFixed(2)}</td>
     </tr>`;
   }).join('');
 
   const ivaImporte  = total - baseImponible;
   const pagadoBadge = pagado === 'pagado'
-    ? `<div style="text-align:center;font-weight:bold;font-size:12px;border:2px solid #000;padding:3px 0;margin:5px 0;letter-spacing:1px">&#10003; RESERVA PAGADA</div>`
-    : `<div style="text-align:center;font-weight:bold;font-size:12px;border:2px dashed #000;padding:3px 0;margin:5px 0;letter-spacing:1px">&#9888; PENDIENTE DE PAGO</div>`;
+    ? `<div style="text-align:center;font-weight:bold;font-size:14px;border:2px solid #000;padding:5px 0;margin:5px 0;letter-spacing:1px">RESERVA PAGADA</div>`
+    : `<div style="text-align:center;font-weight:bold;font-size:14px;border:2px dashed #000;padding:5px 0;margin:5px 0;letter-spacing:1px">PENDIENTE DE PAGO</div>`;
 
   const portalUrl = (localStorage.getItem('em_portal_url') || CLIENT_PORTAL)
     + '?tel=' + encodeURIComponent(phone.replace(/\s/g,''));
@@ -2183,20 +2183,35 @@ function buildTicket(name, phone, resId, date, articles, total, pagado) {
     * { margin:0; padding:0; box-sizing:border-box; }
     html, body {
       width: 80mm;
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
       color: #000;
       background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    @page { size: 80mm auto; margin: 4mm; }
+    @page { size: 80mm auto; margin: 3mm 4mm; }
     @media print { html, body { width: 80mm; } }
-    .wrap { width:72mm; padding:0; line-height:1.5; }
-    .center { text-align:center; }
-    .bold { font-weight:bold; }
-    .sep { border-top:1px solid #000; margin:5px 0; }
-    .sep-dashed { border-top:1px dashed #000; margin:5px 0; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { font-size:10px; }
+    .wrap { width: 74mm; padding: 0; line-height: 1.6; }
+    .center { text-align: center; }
+    .right  { text-align: right; }
+    .bold   { font-weight: bold; }
+    .big    { font-size: 15px; font-weight: bold; }
+    .small  { font-size: 11px; }
+    .xsmall { font-size: 10px; }
+    .sep  { border-top: 1.5px solid #000; margin: 6px 0; }
+    .sep2 { border-top: 1px dashed #000; margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      font-size: 11px;
+      font-weight: bold;
+      padding: 3px 2px;
+      border-top: 1.5px solid #000;
+      border-bottom: 1.5px solid #000;
+      text-transform: uppercase;
+    }
+    td { font-size: 12px; padding: 4px 2px; vertical-align: top; }
+    .inv { background:#000; color:#fff; padding:2px 4px; display:inline-block; }
   </style>
 </head>
 <body>
@@ -2204,31 +2219,29 @@ function buildTicket(name, phone, resId, date, articles, total, pagado) {
 
   ${logoHTML}
 
-  <div class="bold" style="font-size:12px">Electromóvil Salamanca C.B</div>
-  <div>C/ María Auxiliadora Nº 59</div>
-  <div>37004 - Salamanca</div>
-  <div>C.I.F. E37561131</div>
-  <div>Tel. 923065283 / 658884201</div>
+  <div class="big center" style="margin-bottom:2px">Electromóvil Salamanca C.B</div>
+  <div class="center">C/ María Auxiliadora Nº 59</div>
+  <div class="center">37004 - Salamanca</div>
+  <div class="center">C.I.F. E37561131</div>
+  <div class="center">Tel. 923065283 / 658884201</div>
 
   <div class="sep"></div>
 
-  <div><span class="bold">CLIENTE: </span>${name.toUpperCase()}</div>
+  <div class="bold" style="font-size:14px">CLIENTE:</div>
+  <div class="bold" style="font-size:15px">${name.toUpperCase()}</div>
   <div>${phone}</div>
 
   <div class="sep"></div>
 
-  <div style="display:flex;justify-content:space-between">
-    <span>${emitDateFmt} ${emitTime}</span>
-    <span>IVA INCLUIDO</span>
-  </div>
-  <div class="bold">Reserva nº: ${resId}</div>
+  <div class="small">${emitDateFmt} ${emitTime} &nbsp;&nbsp; IVA INCLUIDO</div>
+  <div class="bold" style="font-size:14px">Reserva nº: ${resId}</div>
 
   <div class="sep"></div>
 
   <table>
     <thead>
-      <tr style="border-bottom:1px solid #000">
-        <th style="text-align:center;width:20px">U.</th>
+      <tr>
+        <th style="text-align:center;width:22px">U.</th>
         <th style="text-align:left">ARTÍCULO</th>
         <th style="text-align:right">PVP</th>
         <th style="text-align:right">IMP.</th>
@@ -2241,16 +2254,16 @@ function buildTicket(name, phone, resId, date, articles, total, pagado) {
 
   <table>
     <tr>
-      <td class="bold">TOTAL IMPORTE:</td>
-      <td class="bold" style="text-align:right">${total.toFixed(2)} &euro;</td>
+      <td class="bold" style="font-size:14px">TOTAL IMPORTE:</td>
+      <td class="bold right" style="font-size:16px">${total.toFixed(2)} &euro;</td>
     </tr>
   </table>
 
-  <div class="sep-dashed"></div>
+  <div class="sep2"></div>
 
   <table>
     <thead>
-      <tr style="border-bottom:1px dashed #000">
+      <tr>
         <th style="text-align:left">% IVA</th>
         <th style="text-align:right">Base Imp.</th>
         <th style="text-align:right">Imp. IVA</th>
@@ -2259,8 +2272,8 @@ function buildTicket(name, phone, resId, date, articles, total, pagado) {
     <tbody>
       <tr>
         <td>${IVA_PCT},00%</td>
-        <td style="text-align:right">${baseImponible.toFixed(2)}</td>
-        <td style="text-align:right">${ivaImporte.toFixed(2)}</td>
+        <td class="right">${baseImponible.toFixed(2)}</td>
+        <td class="right">${ivaImporte.toFixed(2)}</td>
       </tr>
     </tbody>
   </table>
@@ -2269,38 +2282,36 @@ function buildTicket(name, phone, resId, date, articles, total, pagado) {
 
   ${pagadoBadge}
 
-  <div class="sep-dashed"></div>
+  <div class="sep2"></div>
 
   <div class="center" style="margin:6px 0">
-    <div style="font-size:10px;font-weight:bold;margin-bottom:4px">CONSULTA TU RESERVA</div>
-    <img src="${qrApiUrl}" width="100" height="100" style="display:block;margin:0 auto 4px">
-    <div style="font-size:9px;color:#444">Escanea el QR con tu móvil<br>para ver el estado de tu pedido</div>
+    <div class="bold" style="font-size:12px;margin-bottom:4px">CONSULTA TU RESERVA</div>
+    <img src="${qrApiUrl}" width="110" height="110" style="display:block;margin:0 auto 4px">
+    <div class="xsmall">Escanea el QR con tu movil<br>para ver el estado de tu pedido</div>
   </div>
 
-  <div class="sep-dashed"></div>
+  <div class="sep2"></div>
 
-  <div style="font-size:10px;line-height:1.4;text-align:justify">
-    Importe v&aacute;lido hasta el <strong>${validDateFmt}</strong>.<br>
-    La reserva ser&aacute; v&aacute;lida durante <strong>30 d&iacute;as</strong>,
-    transcurrido este tiempo quedar&aacute; anulada.<br>
-    TODO PEDIDO SER&Aacute; AVISADO A PARTIR DE LAS 12:00.
+  <div class="small" style="line-height:1.6;text-align:justify">
+    Importe valido hasta el <b>${validDateFmt}</b>.<br>
+    La reserva sera valida durante <b>30 dias</b>,
+    transcurrido este tiempo quedara anulada.<br>
+    TODO PEDIDO SERA AVISADO A PARTIR DE LAS 12:00.
   </div>
 
-  <div class="center bold" style="font-size:12px;margin-top:8px">
+  <div class="bold center" style="font-size:14px;margin-top:10px">
     *** GRACIAS POR SU VISITA ***
   </div>
 
 </div>
 <script>
   window.onload = function() {
-    // Esperar a que cargue el QR antes de imprimir
-    var img = document.querySelector('img');
+    var img = document.querySelector('img[src*="qrserver"]');
     if (img && !img.complete) {
-      img.onload = function() { window.print(); setTimeout(function(){ window.close(); }, 1500); };
+      img.onload  = function() { window.print(); setTimeout(function(){ window.close(); }, 1500); };
       img.onerror = function() { window.print(); setTimeout(function(){ window.close(); }, 1500); };
     } else {
-      window.print();
-      setTimeout(function(){ window.close(); }, 1500);
+      setTimeout(function(){ window.print(); setTimeout(function(){ window.close(); }, 1500); }, 300);
     }
   };
 <\/script>
